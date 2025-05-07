@@ -45,11 +45,14 @@
     </div>
   </nav>
 
-  <!-- Real-Time Visualization Form -->
-  <section class="container py-5" style="margin-top:100px;">
-    <h2 class="text-center mb-4">Real-Time Stock Visualization</h2>
 
-    <form method="POST" class="row g-3 justify-content-center mb-5">
+<section class="container py-5" style="margin-top:100px;">
+    <h2 class="text-center mb-4">Real-Time Stock Visualization</h2>
+    <p class="text-center mb-4 text-light fs-5" style="max-width: 800px; margin: 0 auto;">
+      Monitor live market movements with minute-level updates. Visualize stock prices in multiple chart formats including line, candlestick, bar, and OHLC. This tool helps you track intraday trends and make fast, data-driven decisions based on real-time stock performance.
+    </p>
+    
+    <!-- <form method="POST" class="row g-3 justify-content-center mb-5">
       <div class="col-md-4">
         <input type="text"
                name="ticker"
@@ -70,16 +73,35 @@
       </div>
     </form>
 
-    <!-- Plotly Chart -->
     <div class="mb-5">
       {{ chart_html | safe }}
     </div>
 
-    <!-- Recent Data Table -->
     <div class="table-responsive">
       {{ df_table | safe }}
-    </div>
-  </section>
+    </div> -->
+    <form method="POST" class="mb-4">
+      <input type="text" name="ticker" placeholder="Enter Ticker (e.g., AAPL)" required class="form-control mb-2">
+      <select name="chart_type" class="form-select mb-2">
+        <option value="Line Chart">Line Chart</option>
+        <option value="Candlestick Chart">Candlestick Chart</option>
+        <option value="Bar Chart">Bar Chart</option>
+        <option value="OHLC Chart">OHLC Chart</option>
+      </select>
+      <button type="submit" class="btn btn-warning w-100">Visualize</button>
+    </form>
+    
+    {% if chart_html %}
+      <div class="mt-4">
+        {{ chart_html | safe }}
+      </div>
+      <div class="mt-4">
+        <h5 class="text-white">Latest Stock Data</h5>
+        {{ df_table | safe }}
+      </div>
+    {% endif %}
+    
+  </section> 
 
   <!-- Contact Section -->
   <section class="position-relative mt-5" id="contact">

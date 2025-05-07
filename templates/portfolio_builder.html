@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI-Powered Portfolio Builder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body { background-color: #111; color: white; font-family: 'Poppins', sans-serif; }
+    .form-label { font-weight: 600; }
+    .btn-generate { background-color: gold; font-weight: 600; color: black; }
+    .table thead th { color: gold; }
+  </style>
+</head>
+<body>
+<div class="container py-5">
+  <h2 class="text-center mb-4">🧠 AI-Powered Portfolio Builder</h2>
+  <form method="POST" class="mb-4">
+    <div class="row mb-3">
+      <label class="form-label">💰 Investment Budget ($)</label>
+      <input type="number" class="form-control" name="budget" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">⚖️ Risk Tolerance</label><br>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="risk" value="low" required>
+        <label class="form-check-label">Low</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="risk" value="medium">
+        <label class="form-check-label">Medium</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="risk" value="high">
+        <label class="form-check-label">High</label>
+      </div>
+    </div>
+    <button class="btn btn-generate w-100">🔍 Generate Portfolio</button>
+  </form>
+
+  {% if summary.stocks %}
+  <h4 class="text-success text-center">✅ Recommended Stocks</h4>
+  <table class="table table-dark table-hover text-center">
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>Annual Return</th>
+        <th>Volatility</th>
+        <th>PE Ratio</th>
+        <th>Allocation ($)</th>
+        <th>Expected Return ($)</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for stock in summary.stocks %}
+      <tr>
+        <td>{{ stock.ticker }}</td>
+        <td>{{ stock.annual_return | round(2) }}</td>
+        <td>{{ stock.volatility | round(2) }}</td>
+        <td>{{ stock.pe_ratio }}</td>
+        <td>{{ stock.allocation | round(2) }}</td>
+        <td>{{ stock.expected_return | round(2) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h5 class="text-center mt-4">📊 Allocation Chart</h5>
+  <div class="bg-white rounded p-3">{{ fig_html | safe }}</div>
+
+  <div class="mt-4">
+    <p><strong>📈 Projected Portfolio Return:</strong> {{ summary.expected_return | round(2) }} USD</p>
+    <p><strong>📉 Estimated Risk (Volatility):</strong> {{ summary.avg_volatility | round(2) }}%</p>
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

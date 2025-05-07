@@ -77,6 +77,10 @@
     <!-- FORM -->
     <section class="container py-5" style="margin-top:100px;">
       <h2 class="text-center mb-4">Predict the Future</h2>
+      <p class="text-center mb-4 text-light fs-5" style="max-width: 850px; margin: 0 auto;">
+        Leverage advanced machine learning models like LSTM, ARIMA, and Linear Regression to forecast future stock prices based on historical data. This tool combines deep learning with sentiment analysis from platforms like Twitter, Reddit, and 4chan to generate intelligent stock movement predictions and actionable recommendations.
+      </p>
+      
       <form method="POST" class="row g-3 justify-content-center mb-5">
         <div class="col-md-6">
           <input name="symbol" value="{{ quote or '' }}" class="form-control form-control-lg" placeholder="Enter ticker (e.g. AAPL)" required>

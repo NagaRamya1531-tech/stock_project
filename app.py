@@ -5,7 +5,7 @@ import json
 import requests
 import numpy as np
 import pandas as pd
-import yfinance as yf
+# import yfinance as yf
 import plotly.graph_objs as go
 import plotly.express as px
 import json
@@ -19,7 +19,7 @@ import io
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-from yahooquery import search
+
 from yahoo_fin import stock_info as si
 from sklearn.linear_model import LinearRegression
 from io import BytesIO
@@ -29,6 +29,10 @@ from sklearn.metrics import mean_squared_error
 from keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
 import plotly.io as pio
+
+import pandas as pd
+from alpha_vantage.timeseries import TimeSeries
+from sklearn.cluster import KMeans
 
 pio.renderers.default = "browser" 
 
@@ -240,6 +244,14 @@ def company():
 
 # --------------------------- Explore ---------------------------
 
+
+from flask import render_template, request
+import pandas as pd
+import requests
+import plotly.graph_objs as go
+
+ALPHA_API_KEY = '723Z6Q31E5B0F2W3'
+
 @app.route('/explore', methods=['GET', 'POST'])
 def explore():
     chart_html = ""
@@ -247,28 +259,49 @@ def explore():
     ticker = "AAPL"
     selected_time_range = "1mo"
 
+    # Time range mapping for Alpha Vantage
     time_range_map = {
-        "1d": ("1d", "1m"),
-        "5d": ("5d", "5m"),
-        "1mo": ("1mo", "1d"),
-        "6mo": ("6mo", "1wk"),
-        "1y": ("1y", "1d"),
-        "5y": ("5y", "1mo"),
-        "all": ("max", "3mo")
+        "1d": ("TIME_SERIES_INTRADAY", "1min"),
+        "5d": ("TIME_SERIES_INTRADAY", "5min"),
+        "1mo": ("TIME_SERIES_DAILY", None),
+        "6mo": ("TIME_SERIES_DAILY", None),
+        "1y": ("TIME_SERIES_DAILY", None),
+        "5y": ("TIME_SERIES_WEEKLY", None),
+        "all": ("TIME_SERIES_MONTHLY", None)
     }
 
     if request.method == "POST":
         ticker = request.form.get("ticker", "AAPL").upper()
         selected_time_range = request.form.get("time_range", "1mo")
 
-    period, interval = time_range_map.get(selected_time_range, ("1mo", "1d"))
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period=period, interval=interval)
+    function, interval = time_range_map.get(selected_time_range, ("TIME_SERIES_DAILY", None))
+    url = f"https://www.alphavantage.co/query?function={function}&symbol={ticker}&apikey={ALPHA_API_KEY}"
+    if interval:
+        url += f"&interval={interval}&outputsize=compact"
 
-    if not hist.empty:
+    try:
+        # Fetch data from Alpha Vantage
+        r = requests.get(url)
+        raw = r.json()
+
+        if "Note" in raw or "Error Message" in raw:
+            raise ValueError(f"Alpha Vantage Error: {raw.get('Note') or raw.get('Error Message')}")
+
+        key = next((k for k in raw if "Time Series" in k), None)
+        if not key:
+            raise ValueError("No price data found in Alpha Vantage response.")
+
+        df = pd.DataFrame.from_dict(raw[key], orient="index")
+        df.columns = [c.split(". ")[1] for c in df.columns]
+        df.index = pd.to_datetime(df.index)
+        df = df.sort_index()
+        df = df.astype(float).reset_index()
+        df.rename(columns={"index": "Date"}, inplace=True)
+
+        # Plot chart
         fig = go.Figure(go.Scatter(
-            x=hist.index,
-            y=hist["Close"],
+            x=df["Date"],
+            y=df["close"],
             mode="lines+markers",
             name=f"{ticker} Close"
         ))
@@ -281,37 +314,16 @@ def explore():
         chart_html = fig.to_html(full_html=False)
 
         # Performance metrics
-        pct_returns = hist["Close"].pct_change().dropna()
+        pct_returns = df["close"].pct_change().dropna()
         stdev = round(pct_returns.std() * 100, 2)
         annual_return = round((1 + pct_returns.mean()) ** 252 - 1, 2) * 100
         risk_adj_return = round(annual_return / stdev, 2) if stdev != 0 else 0
 
-        latest_price = round(hist["Close"].iloc[-1], 2)
-        previous_close = round(hist["Close"].iloc[-2], 2)
+        latest_price = round(df["close"].iloc[-1], 2)
+        previous_close = round(df["close"].iloc[-2], 2)
         price_diff = round(latest_price - previous_close, 2)
         percent_change = round((price_diff / previous_close) * 100, 2)
         color = "success" if price_diff > 0 else "danger"
-
-        # Fundamentals
-        info = stock.info
-        fundamentals = {
-            "Market Cap": info.get("marketCap"),
-            "PE Ratio": info.get("trailingPE"),
-            "EPS": info.get("trailingEps"),
-            "Dividend Yield": info.get("dividendYield"),
-            "Industry": info.get("industry"),
-            "Sector": info.get("sector"),
-            "Website": info.get("website")
-        }
-
-        # Headquarters location (map)
-        location = None
-        if "city" in info and "state" in info:
-            geolocator = Nominatim(user_agent="stock-explorer")
-            address = f"{info['city']}, {info['state']}"
-            loc = geolocator.geocode(address)
-            if loc:
-                location = {"lat": loc.latitude, "lon": loc.longitude}
 
         data = {
             "ticker": ticker,
@@ -322,12 +334,14 @@ def explore():
             "annual_return": annual_return,
             "stdev": stdev,
             "risk_adj_return": risk_adj_return,
-            "fundamentals": fundamentals,
-            "location": location
+            "fundamentals": {},  # Empty dict to support template
+            "location": None
         }
 
-    return render_template("explore.html", chart_html=chart_html, data=data, ticker=ticker, selected_time_range=selected_time_range)
+    except Exception as e:
+        chart_html = f"<p class='text-danger'>Error: {e}</p>"
 
+    return render_template("explore.html", chart_html=chart_html, data=data, ticker=ticker, selected_time_range=selected_time_range)
 
 
 # --------------------------- News ---------------------------
@@ -365,31 +379,22 @@ def get_tickers_from_names(companies):
             tickers[company] = None
     return tickers
 
-def fetch_stock_data(tickers):
-    data = []
-    for company, symbol in tickers.items():
-        if not symbol:
-            continue
-        try:
-            stock = yf.Ticker(symbol)
-            hist = stock.history(period='5d')
-            if len(hist) >= 2:
-                prev = hist['Close'].iloc[-2]
-                curr = hist['Close'].iloc[-1]
-                change = curr - prev
-                percent = (change / prev) * 100
-                data.append({
-                    'Symbol': company,
-                    'Open Price': hist['Open'].iloc[-1],
-                    'High Price': hist['High'].iloc[-1],
-                    'Low Price': hist['Low'].iloc[-1],
-                    'Previous Price': prev,
-                    'Close': curr,
-                    'Change (%)': percent
-                })
-        except:
-            continue
-    return data[:8]
+
+
+def fetch_stock_data(ticker, period="1d", interval="1m"):
+    try:
+        t = Ticker(ticker)
+        data = t.history(period=period, interval=interval)
+        
+        if isinstance(data.index, pd.MultiIndex):
+            data = data.reset_index()
+            data = data[data['symbol'] == ticker]
+        
+        return data
+    except Exception as e:
+        print(f"[ERROR] Fetch failed for {ticker}: {e}")
+        return pd.DataFrame()
+
 
 def fetch_indices():
     indices = {
@@ -415,6 +420,9 @@ def fetch_indices():
 
 # --------------------------- Live Visualize ---------------------------
 
+
+ALPHA_API_KEY = '723Z6Q31E5B0F2W3'  # Replace with your own if needed
+
 @app.route('/live_visualize', methods=["GET", "POST"])
 def live_visualize():
     chart_html, df_table = "", ""
@@ -423,37 +431,75 @@ def live_visualize():
 
     if request.method == "POST":
         ticker = request.form.get("ticker", default_ticker).upper()
+
         try:
-            stock = yf.Ticker(ticker)
-            data = stock.history(period="1d", interval="1m")
-            if not data.empty:
-                data.drop(columns=[col for col in ['Dividends', 'Stock Splits'] if col in data.columns], inplace=True)
+            # Fetch from Alpha Vantage
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={ticker}&interval=1min&apikey={ALPHA_API_KEY}'
+            r = requests.get(url)
+            raw = r.json()
 
-                if chart_type == "Line Chart":
-                    fig = go.Figure(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
-                elif chart_type == "Candlestick Chart":
-                    fig = go.Figure(go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close']))
-                elif chart_type == "Bar Chart":
-                    fig = go.Figure(go.Bar(x=data.index, y=data['Close'], name='Close Price'))
-                elif chart_type == "OHLC Chart":
-                    fig = go.Figure(go.Ohlc(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close']))
+            time_series = raw.get("Time Series (1min)", {})
+            if not time_series:
+                raise ValueError("No data returned or API limit exceeded.")
 
-                fig.update_layout(title=f"{ticker} - {chart_type}", xaxis_title="Time", yaxis_title="Price")
-                chart_html = fig.to_html(full_html=False)
-                df_table = data.tail(20).to_html(classes="table table-striped", border=0)
+            # Parse and clean data
+            df = pd.DataFrame.from_dict(time_series, orient='index')
+            df = df.rename(columns={
+                '1. open': 'open',
+                '2. high': 'high',
+                '3. low': 'low',
+                '4. close': 'close',
+                '5. volume': 'volume'
+            })
+            df.index = pd.to_datetime(df.index)
+            df = df.sort_index()
+            df = df.astype(float)
+            df.reset_index(inplace=True)
+            df.rename(columns={"index": "timestamp"}, inplace=True)
+
+            # Generate chart
+            if chart_type == "Line Chart":
+                fig = go.Figure(go.Scatter(x=df['timestamp'], y=df['close'], mode='lines', name='Close Price'))
+            elif chart_type == "Candlestick Chart":
+                fig = go.Figure(go.Candlestick(x=df['timestamp'],
+                                               open=df['open'],
+                                               high=df['high'],
+                                               low=df['low'],
+                                               close=df['close']))
+            elif chart_type == "Bar Chart":
+                fig = go.Figure(go.Bar(x=df['timestamp'], y=df['close'], name='Close Price'))
+            elif chart_type == "OHLC Chart":
+                fig = go.Figure(go.Ohlc(x=df['timestamp'],
+                                        open=df['open'],
+                                        high=df['high'],
+                                        low=df['low'],
+                                        close=df['close']))
             else:
-                chart_html = "<p>No data available.</p>"
+                fig = go.Figure()
+
+            fig.update_layout(
+                title=f"{ticker} - {chart_type}",
+                xaxis_title="Time",
+                yaxis_title="Price",
+                plot_bgcolor="white"
+            )
+
+            chart_html = fig.to_html(full_html=False)
+            df_table = df.tail(20).to_html(classes="table table-striped", border=0, index=False)
+
         except Exception as e:
-            chart_html = f"<p>Error: {e}</p>"
+            chart_html = f"<p class='text-danger'>Error: {e}</p>"
 
     return render_template("live_visualize.html", chart_html=chart_html, df_table=df_table)
 
+
+
 # --------------------------- Stock Prediction ---------------------------
 
+ALPHA_KEY = "723Z6Q31E5B0F2W3"  # <-- Replace with your actual API key
 
 @app.route('/stock_comparison', methods=['GET', 'POST'])
 def stock_comparison():
-    # Load tickers from fdata.csv
     try:
         df = pd.read_csv(os.path.join('static', 'data', 'fdata.csv'), encoding='latin-1')
         tickers = sorted(df['Symbol'].dropna().unique().tolist())
@@ -470,45 +516,64 @@ def stock_comparison():
         start_date = request.form.get('start_date')
         end_date = request.form.get('end_date')
 
-        # Fetch data
-        data1 = yf.download(ticker1, start=start_date, end=end_date)
-        data2 = yf.download(ticker2, start=start_date, end=end_date)
+        ts = TimeSeries(key=ALPHA_KEY, output_format='pandas')
 
-        if data1.empty or data2.empty:
-            error = "❌ One or both tickers returned no data."
-        else:
-            # Daily returns
-            data1['Daily_Return'] = data1['Close'].pct_change()
-            data2['Daily_Return'] = data2['Close'].pct_change()
+        try:
+            data1, _ = ts.get_daily(symbol=ticker1, outputsize='full')
+            data2, _ = ts.get_daily(symbol=ticker2, outputsize='full')
 
-            # Cumulative returns
-            data1['Cumulative_Return'] = (1 + data1['Daily_Return']).cumprod() - 1
-            data2['Cumulative_Return'] = (1 + data2['Daily_Return']).cumprod() - 1
 
-            # Volatility
-            vol1 = data1['Daily_Return'].std()
-            vol2 = data2['Daily_Return'].std()
+            data1 = data1.sort_index()
+            data2 = data2.sort_index()
 
-            # Daily Return Chart
-            fig1 = go.Figure()
-            fig1.add_trace(go.Scatter(x=data1.index, y=data1['Daily_Return'], mode='lines', name=ticker1))
-            fig1.add_trace(go.Scatter(x=data2.index, y=data2['Daily_Return'], mode='lines', name=ticker2))
-            fig1.update_layout(title='Daily Returns', xaxis_title='Date', yaxis_title='Return')
-            fig_returns = fig1.to_html(full_html=False)
+            # Filter by date
+            data1 = data1.loc[start_date:end_date]
+            data2 = data2.loc[start_date:end_date]
 
-            # Cumulative Return Chart
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(x=data1.index, y=data1['Cumulative_Return'], mode='lines', name=ticker1))
-            fig2.add_trace(go.Scatter(x=data2.index, y=data2['Cumulative_Return'], mode='lines', name=ticker2))
-            fig2.update_layout(title='Cumulative Returns', xaxis_title='Date', yaxis_title='Cumulative Return')
-            fig_cumulative = fig2.to_html(full_html=False)
+            if data1.empty or data2.empty:
+                error = "❌ One or both tickers returned no data."
+            else:
+                # Rename '5. adjusted close' to Close
+                # Rename '4. close' to Close
+                data1.rename(columns={'4. close': 'Close'}, inplace=True)
+                data2.rename(columns={'4. close': 'Close'}, inplace=True)
 
-            # Volatility Chart
-            fig3 = go.Figure()
-            fig3.add_trace(go.Bar(x=[ticker1], y=[vol1], name=ticker1))
-            fig3.add_trace(go.Bar(x=[ticker2], y=[vol2], name=ticker2))
-            fig3.update_layout(title='Volatility Comparison', xaxis_title='Stock', yaxis_title='Volatility')
-            fig_volatility = fig3.to_html(full_html=False)
+
+                # Daily returns
+                data1['Daily_Return'] = data1['Close'].pct_change()
+                data2['Daily_Return'] = data2['Close'].pct_change()
+
+                # Cumulative returns
+                data1['Cumulative_Return'] = (1 + data1['Daily_Return']).cumprod() - 1
+                data2['Cumulative_Return'] = (1 + data2['Daily_Return']).cumprod() - 1
+
+                # Volatility
+                vol1 = data1['Daily_Return'].std()
+                vol2 = data2['Daily_Return'].std()
+
+                # Daily Return Chart
+                fig1 = go.Figure()
+                fig1.add_trace(go.Scatter(x=data1.index, y=data1['Daily_Return'], mode='lines', name=ticker1))
+                fig1.add_trace(go.Scatter(x=data2.index, y=data2['Daily_Return'], mode='lines', name=ticker2))
+                fig1.update_layout(title='Daily Returns', xaxis_title='Date', yaxis_title='Return')
+                fig_returns = fig1.to_html(full_html=False)
+
+                # Cumulative Return Chart
+                fig2 = go.Figure()
+                fig2.add_trace(go.Scatter(x=data1.index, y=data1['Cumulative_Return'], mode='lines', name=ticker1))
+                fig2.add_trace(go.Scatter(x=data2.index, y=data2['Cumulative_Return'], mode='lines', name=ticker2))
+                fig2.update_layout(title='Cumulative Returns', xaxis_title='Date', yaxis_title='Cumulative Return')
+                fig_cumulative = fig2.to_html(full_html=False)
+
+                # Volatility Chart
+                fig3 = go.Figure()
+                fig3.add_trace(go.Bar(x=[ticker1], y=[vol1], name=ticker1))
+                fig3.add_trace(go.Bar(x=[ticker2], y=[vol2], name=ticker2))
+                fig3.update_layout(title='Volatility Comparison', xaxis_title='Stock', yaxis_title='Volatility')
+                fig_volatility = fig3.to_html(full_html=False)
+
+        except Exception as e:
+            error = f"Error fetching data: {e}"
 
     return render_template("stock_comparison.html",
                            tickers=tickers,
@@ -518,9 +583,6 @@ def stock_comparison():
                            fig_cumulative=fig_cumulative,
                            fig_volatility=fig_volatility,
                            error=error)
-
-
-
 
 
 
@@ -561,7 +623,7 @@ def stock_lstm_prediction():
 
         # Step 1: Fetch historical OHLCV data
         try:
-            df = get_historical(symbol, fallback_key="JB37LT7KI12GIN2D", csv_dir=".")
+            df = get_historical(symbol, fallback_key="723Z6Q31E5B0F2W3", csv_dir=".")
         except Exception as e:
             df = pd.DataFrame()
             error = f"Error retrieving data for {symbol}: {e}"
@@ -571,7 +633,7 @@ def stock_lstm_prediction():
         else:
             try:
                 # Step 2: Run all prediction models
-                res = run_prediction(symbol, alpha_key="JB37LT7KI12GIN2D")
+                res = run_prediction(symbol, alpha_key="723Z6Q31E5B0F2W3")
                 latest = res.get('latest', {})
                 arima  = res.get('arima', {})
                 lstm   = res.get('lstm', {})
@@ -624,6 +686,7 @@ def stock_lstm_prediction():
         rec_text=rec_text,
         error=error
     )
+
 
 # --------------------------- Run Server ---------------------------
 
