@@ -1,0 +1,632 @@
+import os
+import sqlite3
+import bcrypt
+import json
+import requests
+import numpy as np
+import pandas as pd
+import yfinance as yf
+import plotly.graph_objs as go
+import plotly.express as px
+import json
+import requests
+from geopy.geocoders import Nominatim
+import folium
+from folium import Map, Marker
+from io import BytesIO
+import base64
+import io
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
+from yahooquery import search
+from yahoo_fin import stock_info as si
+from sklearn.linear_model import LinearRegression
+from io import BytesIO
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from prophet import Prophet  # ensure it's installed via: pip install prophet
+from sklearn.metrics import mean_squared_error
+from keras.models import load_model
+from sklearn.preprocessing import MinMaxScaler
+import plotly.io as pio
+
+pio.renderers.default = "browser" 
+
+# app.py
+
+from sentiment import (
+    fetch_twitter_texts, fetch_reddit_texts, fetch_4chan_texts,
+    analyze_sentiments, plot_sentiment_pie, get_multi_social_sentiment,
+    make_recommendation
+)
+from prediction import (
+    get_historical,
+    run_prediction,
+    create_trend_fig,
+    create_arima_fig,
+    create_lstm_fig,
+    create_lr_fig
+)
+from market_trends import fetch_market_trends
+
+from io import BytesIO
+
+
+
+YAHOO_SCREENER_PREDEF = (
+    "https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved"
+)
+
+YAHOO_SCREENER_URL = "https://query2.finance.yahoo.com/v1/finance/screener"
+# Initialize Flask app
+app = Flask(__name__)
+app.secret_key = 'supersecretkey'
+
+# Database setup
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, 'data', 'database.db')
+
+def init_db():
+    os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            dob TEXT NOT NULL,
+            email TEXT NOT NULL,
+            username TEXT UNIQUE NOT NULL,
+            password BLOB NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# --------------------------- Auth Routes ---------------------------
+
+@app.route('/')
+def home():
+    return render_template('home.html')
+
+
+
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        dob = request.form['dob']
+        username = request.form['username']
+        password = request.form['password']
+        hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+        try:
+            conn = sqlite3.connect(DATABASE)
+            c = conn.cursor()
+            c.execute('INSERT INTO users (name, dob, email, username, password) VALUES (?, ?, ?, ?, ?)',
+                      (name, dob, email, username, hashed_pw))
+            conn.commit()
+            flash('Signup successful! Please login.', 'success')
+            return redirect(url_for('login'))
+        except sqlite3.IntegrityError:
+            flash('Username already exists.', 'danger')
+        finally:
+            conn.close()
+    return render_template('signup.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user_input = request.form['username']  # Could be username or email
+        password = request.form['password']
+
+        conn = sqlite3.connect(DATABASE)
+        c = conn.cursor()
+        c.execute('SELECT username, password FROM users WHERE username = ? OR email = ?', (user_input, user_input))
+        result = c.fetchone()
+        conn.close()
+
+        if result and bcrypt.checkpw(password.encode('utf-8'), result[1]):
+            session['username'] = result[0]  # Store actual username in session
+            flash('Login successful!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username/email or password.', 'danger')
+
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('home'))
+
+
+
+@app.route('/dashboard')
+def dashboard():
+    import pandas as pd
+
+    df = pd.read_csv('static/data/Yahoo-Finance-Ticker-Symbols.csv')
+    df = df.dropna(subset=["Ticker", "Name", "Exchange"])
+
+    exchange_map = {
+        "NMS": "NASDAQ", "NYQ": "NYSE", "ASE": "AMEX", "PCX": "NYSEARCA",
+        "NGM": "NASDAQ", "PNK": "OTC", "BTS": "BATS"
+    }
+    df["TVExchange"] = df["Exchange"].map(exchange_map)
+    df = df.dropna(subset=["TVExchange"])
+
+    tv_symbols = [
+        {"s": f"{row.TVExchange}:{row.Ticker}", "d": row.Name}
+        for _, row in df.head(30).iterrows()
+    ]
+
+    return render_template("dashboard.html", tv_symbols=tv_symbols)
+
+
+
+@app.route('/get_ticker_symbols')
+def get_ticker_symbols():
+    try:
+        df = pd.read_csv('static/data/Yahoo-Finance-Corrected.csv')
+
+        # Ensure these columns exist
+        if not {'Symbol', 'Name', 'Exchange'}.issubset(df.columns):
+            return jsonify({"error": "CSV must contain 'Symbol', 'Name', 'Exchange' columns"}), 400
+
+        df = df.dropna(subset=["Symbol", "Name", "Exchange"])
+        df = df[df["Exchange"].isin(["NASDAQ", "NYSE"])]
+        df = df.head(50)  # Limit to avoid overload
+
+        symbols = []
+        for _, row in df.iterrows():
+            symbol = str(row['Symbol']).strip().upper()
+            name = str(row['Name']).strip()
+            exchange = str(row['Exchange']).strip().upper()
+
+            prefix = "NASDAQ" if exchange == "NASDAQ" else "NYSE"
+            symbols.append({
+                "proName": f"{prefix}:{symbol}",
+                "title": name
+            })
+
+        return jsonify(symbols)
+
+    except Exception as e:
+        import traceback
+        print("ERROR:", traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route("/debug_columns")
+def debug_columns():
+    import pandas as pd
+    df = pd.read_csv("static/data/Yahoo-Finance-Ticker-Symbols_test.csv")
+    return f"Columns: {list(df.columns)}"
+
+
+
+# --------------------------- Company Page ---------------------------
+
+@app.route('/company', methods=['GET', 'POST'])
+def company():
+    # load & clean
+    data_dir = os.path.join('static', 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    df = pd.read_csv(os.path.join(data_dir, 'fdata.csv'), encoding='latin-1')
+    df['Industry'] = df['Industry'].fillna('Unknown')
+
+    industries = sorted(df['Industry'].unique())
+    selected_industry = request.form.get('industry') if request.method == 'POST' else None
+
+    # create a list of simple dicts
+    companies = []
+    if selected_industry:
+        sub = df[df['Industry'] == selected_industry][['Company Name','Symbol','Market Cap']]
+        companies = sub.to_dict(orient='records')
+
+    return render_template(
+        'company.html',
+        industries=industries,
+        selected_industry=selected_industry,
+        companies=companies
+    )
+
+
+# --------------------------- Explore ---------------------------
+
+@app.route('/explore', methods=['GET', 'POST'])
+def explore():
+    chart_html = ""
+    data = {}
+    ticker = "AAPL"
+    selected_time_range = "1mo"
+
+    time_range_map = {
+        "1d": ("1d", "1m"),
+        "5d": ("5d", "5m"),
+        "1mo": ("1mo", "1d"),
+        "6mo": ("6mo", "1wk"),
+        "1y": ("1y", "1d"),
+        "5y": ("5y", "1mo"),
+        "all": ("max", "3mo")
+    }
+
+    if request.method == "POST":
+        ticker = request.form.get("ticker", "AAPL").upper()
+        selected_time_range = request.form.get("time_range", "1mo")
+
+    period, interval = time_range_map.get(selected_time_range, ("1mo", "1d"))
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period=period, interval=interval)
+
+    if not hist.empty:
+        fig = go.Figure(go.Scatter(
+            x=hist.index,
+            y=hist["Close"],
+            mode="lines+markers",
+            name=f"{ticker} Close"
+        ))
+        fig.update_layout(
+            title=f"{ticker} Price Over Time",
+            xaxis_title="Date",
+            yaxis_title="Close Price",
+            template="plotly_white"
+        )
+        chart_html = fig.to_html(full_html=False)
+
+        # Performance metrics
+        pct_returns = hist["Close"].pct_change().dropna()
+        stdev = round(pct_returns.std() * 100, 2)
+        annual_return = round((1 + pct_returns.mean()) ** 252 - 1, 2) * 100
+        risk_adj_return = round(annual_return / stdev, 2) if stdev != 0 else 0
+
+        latest_price = round(hist["Close"].iloc[-1], 2)
+        previous_close = round(hist["Close"].iloc[-2], 2)
+        price_diff = round(latest_price - previous_close, 2)
+        percent_change = round((price_diff / previous_close) * 100, 2)
+        color = "success" if price_diff > 0 else "danger"
+
+        # Fundamentals
+        info = stock.info
+        fundamentals = {
+            "Market Cap": info.get("marketCap"),
+            "PE Ratio": info.get("trailingPE"),
+            "EPS": info.get("trailingEps"),
+            "Dividend Yield": info.get("dividendYield"),
+            "Industry": info.get("industry"),
+            "Sector": info.get("sector"),
+            "Website": info.get("website")
+        }
+
+        # Headquarters location (map)
+        location = None
+        if "city" in info and "state" in info:
+            geolocator = Nominatim(user_agent="stock-explorer")
+            address = f"{info['city']}, {info['state']}"
+            loc = geolocator.geocode(address)
+            if loc:
+                location = {"lat": loc.latitude, "lon": loc.longitude}
+
+        data = {
+            "ticker": ticker,
+            "latest_price": latest_price,
+            "price_diff": price_diff,
+            "percent_change": percent_change,
+            "color": color,
+            "annual_return": annual_return,
+            "stdev": stdev,
+            "risk_adj_return": risk_adj_return,
+            "fundamentals": fundamentals,
+            "location": location
+        }
+
+    return render_template("explore.html", chart_html=chart_html, data=data, ticker=ticker, selected_time_range=selected_time_range)
+
+
+
+# --------------------------- News ---------------------------
+
+@app.route('/news', methods=['GET', 'POST'])
+def news():
+    urls = {
+        "Union Budget": "https://www.businesstoday.in/union-budget",
+        "Stocks": "https://www.businesstoday.in/markets/stocks",
+        "Investment": "https://www.businesstoday.in/personal-finance/investment"
+    }
+    selected_category = request.form.get('category', 'Stocks') if request.method == 'POST' else 'Stocks'
+    headlines = []
+
+    try:
+        response = requests.get(urls[selected_category], headers={"User-Agent": "Mozilla/5.0"})
+        soup = BeautifulSoup(response.content, "html.parser")
+        for link in soup.find_all('a'):
+            if link.string and len(link.string.strip()) > 35:
+                headlines.append(link.string.strip())
+    except Exception as e:
+        flash(f"Error fetching news: {e}", "danger")
+
+    return render_template('news.html', headlines=headlines, selected_category=selected_category)
+
+# --------------------------- Market Trends ---------------------------
+
+def get_tickers_from_names(companies):
+    tickers = {}
+    for company in companies:
+        try:
+            results = search(company).get('quotes', [])
+            tickers[company] = results[0]['symbol'] if results else None
+        except:
+            tickers[company] = None
+    return tickers
+
+def fetch_stock_data(tickers):
+    data = []
+    for company, symbol in tickers.items():
+        if not symbol:
+            continue
+        try:
+            stock = yf.Ticker(symbol)
+            hist = stock.history(period='5d')
+            if len(hist) >= 2:
+                prev = hist['Close'].iloc[-2]
+                curr = hist['Close'].iloc[-1]
+                change = curr - prev
+                percent = (change / prev) * 100
+                data.append({
+                    'Symbol': company,
+                    'Open Price': hist['Open'].iloc[-1],
+                    'High Price': hist['High'].iloc[-1],
+                    'Low Price': hist['Low'].iloc[-1],
+                    'Previous Price': prev,
+                    'Close': curr,
+                    'Change (%)': percent
+                })
+        except:
+            continue
+    return data[:8]
+
+def fetch_indices():
+    indices = {
+        "Nifty 50": "^NSEI", "Nifty Bank": "^NSEBANK", "Sensex": "^BSESN",
+        "Finnifty": "NIFTY_FIN_SERVICE.NS", "Nifty 100": "^CNX100",
+        "S&P 500": "^GSPC", "Dow Jones": "^DJI"
+    }
+    result = {}
+    for name, ticker in indices.items():
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period="5d")
+            if len(hist) >= 2:
+                prev = hist['Close'].iloc[-2]
+                curr = hist['Close'].iloc[-1]
+                change = curr - prev
+                percent = (change / prev) * 100
+                result[name] = {'close': curr, 'change': change, 'percent': percent}
+        except:
+            result[name] = {'close': None, 'change': None, 'percent': None}
+    return result
+
+
+# --------------------------- Live Visualize ---------------------------
+
+@app.route('/live_visualize', methods=["GET", "POST"])
+def live_visualize():
+    chart_html, df_table = "", ""
+    default_ticker = "SPY"
+    chart_type = request.form.get("chart_type", "Line Chart")
+
+    if request.method == "POST":
+        ticker = request.form.get("ticker", default_ticker).upper()
+        try:
+            stock = yf.Ticker(ticker)
+            data = stock.history(period="1d", interval="1m")
+            if not data.empty:
+                data.drop(columns=[col for col in ['Dividends', 'Stock Splits'] if col in data.columns], inplace=True)
+
+                if chart_type == "Line Chart":
+                    fig = go.Figure(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
+                elif chart_type == "Candlestick Chart":
+                    fig = go.Figure(go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close']))
+                elif chart_type == "Bar Chart":
+                    fig = go.Figure(go.Bar(x=data.index, y=data['Close'], name='Close Price'))
+                elif chart_type == "OHLC Chart":
+                    fig = go.Figure(go.Ohlc(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close']))
+
+                fig.update_layout(title=f"{ticker} - {chart_type}", xaxis_title="Time", yaxis_title="Price")
+                chart_html = fig.to_html(full_html=False)
+                df_table = data.tail(20).to_html(classes="table table-striped", border=0)
+            else:
+                chart_html = "<p>No data available.</p>"
+        except Exception as e:
+            chart_html = f"<p>Error: {e}</p>"
+
+    return render_template("live_visualize.html", chart_html=chart_html, df_table=df_table)
+
+# --------------------------- Stock Prediction ---------------------------
+
+
+@app.route('/stock_comparison', methods=['GET', 'POST'])
+def stock_comparison():
+    # Load tickers from fdata.csv
+    try:
+        df = pd.read_csv(os.path.join('static', 'data', 'fdata.csv'), encoding='latin-1')
+        tickers = sorted(df['Symbol'].dropna().unique().tolist())
+    except Exception:
+        tickers = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"]
+
+    ticker1 = ticker2 = ""
+    fig_returns = fig_cumulative = fig_volatility = ""
+    error = None
+
+    if request.method == 'POST':
+        ticker1 = request.form.get('ticker1')
+        ticker2 = request.form.get('ticker2')
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+
+        # Fetch data
+        data1 = yf.download(ticker1, start=start_date, end=end_date)
+        data2 = yf.download(ticker2, start=start_date, end=end_date)
+
+        if data1.empty or data2.empty:
+            error = "❌ One or both tickers returned no data."
+        else:
+            # Daily returns
+            data1['Daily_Return'] = data1['Close'].pct_change()
+            data2['Daily_Return'] = data2['Close'].pct_change()
+
+            # Cumulative returns
+            data1['Cumulative_Return'] = (1 + data1['Daily_Return']).cumprod() - 1
+            data2['Cumulative_Return'] = (1 + data2['Daily_Return']).cumprod() - 1
+
+            # Volatility
+            vol1 = data1['Daily_Return'].std()
+            vol2 = data2['Daily_Return'].std()
+
+            # Daily Return Chart
+            fig1 = go.Figure()
+            fig1.add_trace(go.Scatter(x=data1.index, y=data1['Daily_Return'], mode='lines', name=ticker1))
+            fig1.add_trace(go.Scatter(x=data2.index, y=data2['Daily_Return'], mode='lines', name=ticker2))
+            fig1.update_layout(title='Daily Returns', xaxis_title='Date', yaxis_title='Return')
+            fig_returns = fig1.to_html(full_html=False)
+
+            # Cumulative Return Chart
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(x=data1.index, y=data1['Cumulative_Return'], mode='lines', name=ticker1))
+            fig2.add_trace(go.Scatter(x=data2.index, y=data2['Cumulative_Return'], mode='lines', name=ticker2))
+            fig2.update_layout(title='Cumulative Returns', xaxis_title='Date', yaxis_title='Cumulative Return')
+            fig_cumulative = fig2.to_html(full_html=False)
+
+            # Volatility Chart
+            fig3 = go.Figure()
+            fig3.add_trace(go.Bar(x=[ticker1], y=[vol1], name=ticker1))
+            fig3.add_trace(go.Bar(x=[ticker2], y=[vol2], name=ticker2))
+            fig3.update_layout(title='Volatility Comparison', xaxis_title='Stock', yaxis_title='Volatility')
+            fig_volatility = fig3.to_html(full_html=False)
+
+    return render_template("stock_comparison.html",
+                           tickers=tickers,
+                           ticker1=ticker1,
+                           ticker2=ticker2,
+                           fig_returns=fig_returns,
+                           fig_cumulative=fig_cumulative,
+                           fig_volatility=fig_volatility,
+                           error=error)
+
+
+
+
+
+
+
+
+
+def fig_to_base64(fig):
+    buf = BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode('ascii')
+
+
+
+
+
+@app.route('/stock_lstm_prediction', methods=['GET', 'POST'])
+def stock_lstm_prediction():
+    # Initialize variables
+    symbol = None
+    latest = arima = lstm = lr = sent = rec = {}
+    charts = {}
+    lstm7 = []
+    rec_text = error = None
+
+    # ✅ Default `social` structure to prevent template errors on GET or failure
+    social = {
+        'twitter': {"label": "Neutral", "avg_compound": 0.0, "counts": {"pos": 0, "neg": 0, "neu": 0}},
+        'reddit':  {"label": "Neutral", "avg_compound": 0.0, "counts": {"pos": 0, "neg": 0, "neu": 0}},
+        '4chan':   {"label": "Neutral", "avg_compound": 0.0, "counts": {"pos": 0, "neg": 0, "neu": 0}},
+        'overall': {"label": "Neutral", "avg_compound": 0.0, "counts": {"pos": 0, "neg": 0, "neu": 0}},
+    }
+
+    twitter_pie_b64 = reddit_pie_b64 = chan_pie_b64 = None
+
+    if request.method == 'POST':
+        symbol = request.form['symbol'].strip().upper()
+
+        # Step 1: Fetch historical OHLCV data
+        try:
+            df = get_historical(symbol, fallback_key="JB37LT7KI12GIN2D", csv_dir=".")
+        except Exception as e:
+            df = pd.DataFrame()
+            error = f"Error retrieving data for {symbol}: {e}"
+
+        if df.empty:
+            error = f"No data found for {symbol}"
+        else:
+            try:
+                # Step 2: Run all prediction models
+                res = run_prediction(symbol, alpha_key="JB37LT7KI12GIN2D")
+                latest = res.get('latest', {})
+                arima  = res.get('arima', {})
+                lstm   = res.get('lstm', {})
+                lr     = res.get('lr', {})
+                sent   = res.get('sent', {})
+                rec    = res.get('rec', {})
+                lstm7  = res.get('lstm7', [])
+
+                # Step 3: Get sentiment scores
+                social = get_multi_social_sentiment(symbol)
+                overall = social.get('overall', {})
+                trend, action = make_recommendation(overall.get('avg_compound', 0.0))
+                rec_text = (
+                    f"According to the Sentiment Analysis of Twitter, Reddit & 4chan, "
+                    f"a {trend.upper()} in {symbol} stock is expected ⇒ {action.upper()}"
+                )
+
+                # Step 4: Generate model charts
+                charts = {
+                    'trend': fig_to_base64(create_trend_fig(df)),
+                    'arima': fig_to_base64(create_arima_fig(df)),
+                    'lstm':  fig_to_base64(create_lstm_fig(df)),
+                    'lr':    fig_to_base64(create_lr_fig(df)),
+                }
+
+                # Step 5: Sentiment pie charts
+                twitter_pie_b64 = fig_to_base64(plot_sentiment_pie(social['twitter'], 'Twitter'))
+                reddit_pie_b64  = fig_to_base64(plot_sentiment_pie(social['reddit'], 'Reddit'))
+                chan_pie_b64    = fig_to_base64(plot_sentiment_pie(social['4chan'], '4chan'))
+
+            except Exception as e:
+                error = f"Model processing error for {symbol}: {e}"
+
+    # Step 6: Render the template
+    return render_template(
+        'stock_lstm_prediction.html',
+        quote=symbol,
+        latest=latest,
+        arima=arima,
+        lstm=lstm,
+        lr=lr,
+        sent=sent,
+        rec=rec,
+        charts=charts,
+        lstm7=lstm7,
+        social=social,
+        twitter_pie=twitter_pie_b64,
+        reddit_pie=reddit_pie_b64,
+        chan_pie=chan_pie_b64,
+        rec_text=rec_text,
+        error=error
+    )
+
+# --------------------------- Run Server ---------------------------
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True)

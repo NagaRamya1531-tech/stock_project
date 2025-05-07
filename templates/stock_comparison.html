@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Company – Stock Insights</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Your custom styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-dark text-white">
+
+  <!-- Background Video & Overlay -->
+  <video autoplay muted loop playsinline class="bg-video">
+    <source src="{{ url_for('static', filename='images/bground.mp4') }}" type="video/mp4">
+  </video>
+  <div class="overlay"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark fixed-top" style="background: rgba(0, 0, 0, 0.3);">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center text-light" href="/">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" width="60" class="me-2">
+        <span style="font-size: 2rem; font-weight: 600;">Stock Insights</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/">Home</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/explore">Explore</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/news">News</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/dashboard">Dashboard</a></li>
+          <li class="nav-item me-4"><a class="nav-link active text-warning" href="/stock_comparison">Stock Comparision</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/logout">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+<div class="container py-5" style="margin-top: 80px;">
+    <h2 class="mb-4 text-primary">📊 Compare Two Stocks</h2>
+
+    <form method="POST" class="row g-3 mb-4">
+        <div class="col-md-3">
+            <label class="form-label">Select Ticker 1</label>
+            <select name="ticker1" class="form-select" required>
+                {% for t in tickers %}
+                    <option value="{{ t }}" {% if t == ticker1 %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Select Ticker 2</label>
+            <select name="ticker2" class="form-select" required>
+                {% for t in tickers %}
+                    <option value="{{ t }}" {% if t == ticker2 %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Start Date</label>
+            <input type="date" name="start_date" class="form-control" required>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">End Date</label>
+            <input type="date" name="end_date" class="form-control" required>
+        </div>
+
+        <div class="col-12">
+            <button type="submit" class="btn btn-primary w-100">Compare</button>
+        </div>
+    </form>
+
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    {% if fig_returns %}
+        <div class="mb-5">
+            <h4 class="text-info">📈 Daily Returns</h4>
+            {{ fig_returns | safe }}
+        </div>
+
+        <div class="mb-5">
+            <h4 class="text-info">📉 Cumulative Returns</h4>
+            {{ fig_cumulative | safe }}
+        </div>
+
+        <div class="mb-5">
+            <h4 class="text-info">📊 Volatility Comparison</h4>
+            {{ fig_volatility | safe }}
+        </div>
+    {% endif %}
+</div>
+
+
+  <!-- ←—— BOTTOM: Contact Section ——→ -->
+  <section class="position-relative mt-5" id="contact">
+    <video autoplay muted loop playsinline class="bg-video-contact">
+      <source src="{{ url_for('static', filename='images/contact_bg.mp4') }}" type="video/mp4">
+    </video>
+    <div class="contact-overlay"></div>
+    <div class="container py-5 position-relative">
+      <h2 class="text-center text-white mb-5">Contact Us</h2>
+      <div class="row align-items-center">
+        <div class="col-md-6 mb-4 text-center">
+          <img src="{{ url_for('static', filename='images/contact_side.png') }}" alt="Contact" class="img-fluid" style="max-height: 350px;">
+        </div>
+        <div class="col-md-6">
+          <div class="card bg-dark text-white border-0 shadow-lg">
+            <div class="card-body">
+              <form>
+                <div class="mb-3">
+                  <label class="form-label">Name</label>
+                  <input type="text" class="form-control" placeholder="Your Name">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Email</label>
+                  <input type="email" class="form-control" placeholder="you@example.com">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Message</label>
+                  <textarea class="form-control" rows="4" placeholder="Message..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-warning w-100">Send Message</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

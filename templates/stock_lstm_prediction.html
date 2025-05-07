@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Predict the Future – Stock Insights</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      background: url('{{ url_for('static', filename='images/about_bg.png') }}') no-repeat center center fixed;
+      background-size: cover;
+      position: relative;
+      color: #fff;
+    }
+    .overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.3);
+      z-index: 1;
+    }
+    .content {
+      position: relative;
+      z-index: 2;
+    }
+    #contact {
+      background: url('{{ url_for('static', filename='images/contact_bg.jpg') }}') no-repeat center center fixed;
+      background-size: cover;
+      position: relative;
+      color: #fff;
+    }
+    .contact-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 1;
+    }
+    #contact .container,
+    .forecast-section,
+    section.container {
+      position: relative;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay"></div>
+  <div class="content">
+
+   <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark fixed-top" style="background: rgba(0, 0, 0, 0.3);">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center text-light" href="/">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" width="60" class="me-2">
+        <span style="font-size: 2rem; font-weight: 600;">Stock Insights</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/">Home</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/explore">Explore</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/news">News</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/dashboard">Dashboard</a></li>
+          <li class="nav-item me-4"><a class="nav-link active text-warning" href="/stock_lstm_prediction">Prediction</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/logout">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+    <!-- FORM -->
+    <section class="container py-5" style="margin-top:100px;">
+      <h2 class="text-center mb-4">Predict the Future</h2>
+      <form method="POST" class="row g-3 justify-content-center mb-5">
+        <div class="col-md-6">
+          <input name="symbol" value="{{ quote or '' }}" class="form-control form-control-lg" placeholder="Enter ticker (e.g. AAPL)" required>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-warning btn-lg w-100">Predict</button>
+        </div>
+      </form>
+
+      {% if error %}
+        <div class="alert alert-danger text-center">{{ error }}</div>
+      {% endif %}
+
+      {% if latest %}
+      <!-- OHLCV CARDS -->
+      <div class="row g-3 mb-5 text-center">
+        {% for label, value, bg in [('OPEN', latest.open, 'primary'), ('HIGH', latest.high, 'warning'), ('LOW', latest.low, 'success'), ('CLOSE', latest.close, 'danger'), ('ADJ CLOSE', latest.adj, 'info'), ('VOLUME', latest.vol, 'secondary')] %}
+        <div class="col-md-2">
+          <div class="card bg-{{ bg }} text-{{ 'dark' if bg=='warning' else 'white' }} p-3 shadow h-100">
+            <h5 class="mb-1">${{ value }}</h5>
+            <small>{{ label }}</small>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- MODEL FIT CHARTS -->
+      <div class="row mb-5">
+        {% for title, key in [('RECENT PRICE TREND','trend'), ('ARIMA MODEL FIT','arima'), ('LSTM MODEL FIT','lstm'), ('LIN. REGRESSION FIT','lr')] %}
+        <div class="col-md-6 mb-4">
+          <div class="card bg-dark border-light shadow h-100">
+            <div class="card-header text-white">{{ title }}</div>
+            {% if charts[key] %}
+              <img src="data:image/png;base64,{{ charts[key] }}" class="card-img-bottom" alt="{{ title }}">
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- TOMORROW FORECAST -->
+      <div class="row g-3 mb-5 text-center">
+        {% for model, color in [('ARIMA','success'),('LSTM','warning'),('Lin. Reg.','danger')] %}
+        <div class="col-md-4">
+          <div class="card bg-{{ color }} text-white p-3 shadow h-100">
+            <h5 class="mb-1">${{ (arima.tom if model=='ARIMA' else lstm.tom if model=='LSTM' else lr.tom) | round(2) }}</h5>
+            <small>Tomorrow ({{ model }})</small>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- RMSE -->
+      <div class="row g-3 mb-5 text-center">
+        {% for model, score in [('ARIMA', arima.rmse), ('LSTM', lstm.rmse), ('Lin. Reg.', lr.rmse)] %}
+        <div class="col-md-4">
+          <div class="card bg-info text-white p-3 shadow h-100">
+            <h5 class="mb-1">{{ score | round(2) }}</h5>
+            <small>{{ model }} RMSE</small>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- 7-DAY FORECAST -->
+      {% if lstm7 %}
+      <h2 class="text-center mb-4">7-Day Forecast (LSTM)</h2>
+      <div class="row justify-content-center gx-4 gy-4">
+        {% for price in lstm7 %}
+        <div class="col-6 col-sm-4 col-md-2">
+          <div class="card forecast-card text-center h-100">
+            <div class="card-body d-flex flex-column justify-content-center">
+              <div class="day-label mb-2">Day {{ loop.index }}</div>
+              <div class="price-display">${{ price | round(2) }}</div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- SENTIMENT RECOMMENDATION -->
+      <div class="row g-3 my-5 text-center">
+        <div class="col-md-12">
+          <div class="card bg-warning text-dark p-3 shadow h-100">
+            <h5 class="card-text" style="font-size: 1.25rem;">{{ rec_text }}</h5>
+            <small class="text-uppercase">Recommendation</small>
+          </div>
+        </div>
+      </div>
+
+
+      <section class="container mt-5 mb-5">
+        <h2 class="text-center text-white mb-4">Social Sentiment Overview</h2>
+        <div class="row g-4 justify-content-center">
+          {% for platform in ['twitter', 'reddit', '4chan', 'overall'] %}
+          {% set bg_image = {
+            'twitter': 'service4.jpg',
+            'reddit': 'service3.jpg',
+            '4chan': 'service2.jpg',
+            'overall': 'Real_Time_Stock_Tracking.jpg'
+          }[platform] %}
+          <div class="col-md-6 col-lg-3">
+            <div class="card sentiment-card text-white shadow-lg h-100"
+                 style="background: url('{{ url_for('static', filename='images/' ~ bg_image) }}') center center / cover no-repeat;">
+              <div class="card-body bg-overlay text-center p-4">
+                <h4 class="card-title text-capitalize">{{ platform }}</h4>
+                <p>Label: <strong>{{ social[platform]['label'] }}</strong></p>
+                <p>Polarity: {{ '%.2f' % social[platform]['avg_compound'] }}</p>
+                <p>👍 {{ social[platform]['counts']['pos'] }}
+                   👎 {{ social[platform]['counts']['neg'] }}
+                   😐 {{ social[platform]['counts']['neu'] }}</p>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      
+
+      <!-- PIE CHARTS -->
+      <div class="row text-center mb-5">
+        {% for pie, label in [(twitter_pie, 'Twitter'), (reddit_pie, 'Reddit'), (chan_pie, '4chan')] %}
+        <div class="col-md-4">
+          <div class="card bg-dark text-white border-light p-3 shadow">
+            <h5>{{ label }} Sentiment</h5>
+            <img src="data:image/png;base64,{{ pie }}" class="img-fluid" alt="{{ label }}">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+    
+    <!-- CONTACT -->
+    <section class="position-relative pt-0 pb-5" id="contact">
+      <video autoplay muted loop playsinline class="bg-video-contact">
+        <source src="{{ url_for('static', filename='images/contact_bg.mp4') }}" type="video/mp4">
+      </video>
+      <div class="contact-overlay"></div>
+      <div class="container py-5 position-relative">
+        <h2 class="text-center text-white mb-5">Contact Us</h2>
+        <div class="row align-items-center">
+          <div class="col-md-6 text-center mb-4">
+            <img src="{{ url_for('static', filename='images/contact_side.png') }}" alt="Contact" class="img-fluid" style="max-height:350px;">
+          </div>
+          <div class="col-md-6">
+            <div class="card bg-dark text-white border-0 shadow-lg">
+              <div class="card-body">
+                <form>
+                  <div class="mb-3">
+                    <label class="form-label">Name</label>
+                    <input type="text" class="form-control" placeholder="Your Name">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-control" placeholder="you@example.com">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Message</label>
+                    <textarea class="form-control" rows="4" placeholder="Message..."></textarea>
+                  </div>
+                  <button type="submit" class="btn btn-warning w-100">Send Message</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div> <!-- content -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

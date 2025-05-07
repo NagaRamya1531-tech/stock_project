@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard - Stock Insights</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-dark text-white">
+
+<!-- 🔁 Background Video -->
+<video autoplay muted loop playsinline class="bg-video">
+  <source src="{{ url_for('static', filename='images/bground.mp4') }}" type="video/mp4">
+</video>
+<div class="overlay"></div>
+
+<!-- 🔝 Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top" style="background: rgba(0, 0, 0, 0.3);">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center text-light" href="/">
+      <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" width="60" class="me-2">
+      <span style="font-size: 2rem; font-weight: 600;">Stock Insights</span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item me-4"><a class="nav-link text-light" href="/">Home</a></li>
+        <li class="nav-item me-4"><a class="nav-link active text-warning" href="/dashboard">Dashboard</a></li>
+        <li class="nav-item me-4"><a class="nav-link text-light" href="/#about">About</a></li>
+        <li class="nav-item me-4"><a class="nav-link text-light" href="#contact">Contact Us</a></li>
+        <li class="nav-item me-4"><a class="nav-link text-light" href="/logout">Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- 🔘 Dashboard Buttons -->
+<div class="container mt-5 pt-5 text-center">
+  <div class="row justify-content-center mb-4">
+    <div class="col-md-3 mb-3"><a href="/company" class="btn btn-warning w-100 py-3 fw-bold">Company</a></div>
+    <div class="col-md-3 mb-3"><a href="/news" class="btn btn-warning w-100 py-3 fw-bold">News</a></div>
+  </div>
+  <div class="row justify-content-center mb-4">
+    <div class="col-md-3 mb-3"><a href="/stock_comparison" class="btn btn-warning w-100 py-3 fw-bold">Stock Comparison</a>
+    </div>
+    <div class="col-md-3 mb-3"><a href="/live_visualize" class="btn btn-warning w-100 py-3 fw-bold">Real Stock Visualization</a></div>
+  </div>
+  <div class="row justify-content-center">
+    <div class="col-md-3 mb-3"><a href="/stock_lstm_prediction" class="btn btn-warning w-100 py-3 fw-bold">Prediction with Sentiment Analysis</a></div>
+    <div class="col-md-3 mb-3"><a href="/explore" class="btn btn-warning w-100 py-3 fw-bold">Explore Visualize</a></div>
+  </div>
+</div>
+<div class="container">
+  <h2 class="mt-5 text-center">📊 Stock Market Trends</h2>
+</div>
+
+<!-- 📈 Ticker Tape -->
+<div class="tradingview-widget-container mt-4 mb-4" id="ticker-tape-container">
+  <div class="tradingview-widget-container__widget" id="dynamic-ticker-tape"></div>
+</div>
+
+<!-- 📊 Market Data and Overview -->
+<!-- <div class="container mt-4 mb-5">
+  <div class="row g-4">
+ 
+   
+    <div class=" col-lg-6 tradingview-widget-container container">
+      <div class="tradingview-widget-container__widget"></div>
+      <div class="tradingview-widget-copyright"><a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">Track all markets on TradingView</span></a></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-hotlists.js" async>
+      {
+      "colorTheme": "dark",
+      "dateRange": "12M",
+      "exchange": "US",
+      "showChart": true,
+      "locale": "en",
+      "largeChartUrl": "",
+      "isTransparent": false,
+      "showSymbolLogo": false,
+      "showFloatingTooltip": false,
+      "width": "500",
+      "height": "550",
+      "plotLineColorGrowing": "rgba(41, 98, 255, 1)",
+      "plotLineColorFalling": "rgba(41, 98, 255, 1)",
+      "gridLineColor": "rgba(42, 46, 57, 0)",
+      "scaleFontColor": "rgba(219, 219, 219, 1)",
+      "belowLineFillColorGrowing": "rgba(41, 98, 255, 0.12)",
+      "belowLineFillColorFalling": "rgba(41, 98, 255, 0.12)",
+      "belowLineFillColorGrowingBottom": "rgba(41, 98, 255, 0)",
+      "belowLineFillColorFallingBottom": "rgba(41, 98, 255, 0)",
+      "symbolActiveColor": "rgba(41, 98, 255, 0.12)"
+    }
+      </script>
+    </div>
+    
+    <div class="col-lg-6" id="market-overview-container">
+      <div class="tradingview-widget-container__widget" id="dynamic-market-overview"></div>
+    </div>
+  </div>
+</div> -->
+<div class="container mt-4 mb-5">
+  <div class="row g-4">
+    
+    <!-- 🔹 Left: TradingView Hotlists Widget -->
+    <div class="col-lg-6">
+      <div class="tradingview-widget-container" style="height: 550px;">
+        <div class="tradingview-widget-container__widget" id="hotlists-widget"></div>
+        <div class="tradingview-widget-copyright">
+          <a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank">
+            <span class="blue-text">Track all markets on TradingView</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🔹 Right: Market Overview -->
+    <div class="col-lg-6">
+      <div class="tradingview-widget-container" style="height: 550px;">
+        <div class="tradingview-widget-container__widget" id="dynamic-market-overview"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 📜 Widgets Script -->
+<script>
+  // Hotlists Widget
+  const hotlistScript = document.createElement("script");
+  hotlistScript.src = "https://s3.tradingview.com/external-embedding/embed-widget-hotlists.js";
+  hotlistScript.async = true;
+  hotlistScript.innerHTML = JSON.stringify({
+    colorTheme: "dark",
+    dateRange: "12M",
+    exchange: "US",
+    showChart: true,
+    locale: "en",
+    largeChartUrl: "",
+    isTransparent: false,
+    showSymbolLogo: false,
+    showFloatingTooltip: false,
+    width: "100%",
+    height: "550",
+    plotLineColorGrowing: "rgba(41, 98, 255, 1)",
+    plotLineColorFalling: "rgba(41, 98, 255, 1)",
+    gridLineColor: "rgba(42, 46, 57, 0)",
+    scaleFontColor: "rgba(219, 219, 219, 1)",
+    belowLineFillColorGrowing: "rgba(41, 98, 255, 0.12)",
+    belowLineFillColorFalling: "rgba(41, 98, 255, 0.12)",
+    belowLineFillColorGrowingBottom: "rgba(41, 98, 255, 0)",
+    belowLineFillColorFallingBottom: "rgba(41, 98, 255, 0)",
+    symbolActiveColor: "rgba(41, 98, 255, 0.12)"
+  });
+  document.getElementById("hotlists-widget").appendChild(hotlistScript);
+</script>
+
+<!-- TradingView Widget BEGIN -->
+<div class="tradingview-widget-container container ">
+  <div class="tradingview-widget-container__widget"></div>
+  <div class="tradingview-widget-copyright"><a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">Track all markets on TradingView</span></a></div>
+  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-screener.js" async>
+  {
+  "width": "100%",
+  "height": "100%",
+  "defaultColumn": "overview",
+  "defaultScreen": "most_capitalized",
+  "showToolbar": true,
+  "locale": "en",
+  "market": "us",
+  "colorTheme": "dark"
+}
+  </script>
+</div>
+<div class=" container" id="market-data-container">
+  <div class="tradingview-widget-container__widget" id="dynamic-market-data"></div>
+</div>
+<!-- TradingView Widget BEGIN -->
+
+<!-- TradingView Widget END -->
+<!-- TradingView Widget END -->
+<!-- ✉️ Contact Section -->
+<section class="position-relative mt-5" id="contact">
+  <video autoplay muted loop playsinline class="bg-video-contact">
+    <source src="{{ url_for('static', filename='images/contact_bg.mp4') }}" type="video/mp4">
+  </video>
+  <div class="contact-overlay"></div>
+  <div class="container py-5 position-relative">
+    <h2 class="text-center text-white mb-5">Contact Us</h2>
+    <div class="row align-items-center">
+      <div class="col-md-6 mb-4 text-center">
+        <img src="{{ url_for('static', filename='images/contact_side.png') }}" alt="Contact" class="img-fluid" style="max-height: 350px;">
+      </div>
+      <div class="col-md-6">
+        <div class="card bg-dark text-white border-0 shadow-lg">
+          <div class="card-body">
+            <form>
+              <div class="mb-3"><label class="form-label">Name</label><input type="text" class="form-control" placeholder="Your Name"></div>
+              <div class="mb-3"><label class="form-label">Email</label><input type="email" class="form-control" placeholder="you@example.com"></div>
+              <div class="mb-3"><label class="form-label">Message</label><textarea class="form-control" rows="4" placeholder="Message..."></textarea></div>
+              <button type="submit" class="btn btn-warning w-100">Send Message</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- 📜 TradingView Widget Loader -->
+<script>
+  fetch("/get_ticker_symbols")
+    .then(res => res.json())
+    .then(symbols => {
+      if (!Array.isArray(symbols) || symbols.length === 0) {
+        document.getElementById("dynamic-ticker-tape").innerHTML = "No ticker data available.";
+        document.getElementById("dynamic-market-data").innerHTML = "No market data available.";
+        document.getElementById("dynamic-market-overview").innerHTML = "No market overview available.";
+        return;
+      }
+
+      // Ticker Tape
+      const tickerScript = document.createElement("script");
+      tickerScript.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
+      tickerScript.async = true;
+      tickerScript.innerHTML = JSON.stringify({
+        symbols: symbols,
+        showSymbolLogo: true,
+        colorTheme: "dark",
+        isTransparent: true,
+        displayMode: "adaptive",
+        locale: "en"
+      });
+      document.getElementById("dynamic-ticker-tape").appendChild(tickerScript);
+
+      // Market Quotes
+      const quotesScript = document.createElement("script");
+      quotesScript.src = "https://s3.tradingview.com/external-embedding/embed-widget-market-quotes.js";
+      quotesScript.async = true;
+      quotesScript.innerHTML = JSON.stringify({
+        title: "Market Quotes",
+        width: "100%",
+        height: 600,
+        locale: "en",
+        showSymbolLogo: true,
+        colorTheme: "dark",
+        symbolsGroups: [{
+          name: "Top Companies",
+          symbols: symbols.slice(0, 50).map(s => ({
+            name: s.proName,
+            displayName: s.title
+          }))
+        }]
+      });
+      document.getElementById("dynamic-market-data").appendChild(quotesScript);
+
+      // Market Overview
+      const overviewScript = document.createElement("script");
+      overviewScript.src = "https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js";
+      overviewScript.async = true;
+      overviewScript.innerHTML = JSON.stringify({
+        colorTheme: "dark",
+        dateRange: "12M",
+        showChart: true,
+        locale: "en",
+        width: "100%",
+        height: "600",
+        isTransparent: false,
+        showSymbolLogo: true,
+        symbolActiveColor: "rgba(33, 150, 243, 0.12)",
+        tabs: [{
+          title: "Top Stocks",
+          symbols: symbols.slice(0, 15).map(s => ({
+            s: s.proName,
+            d: s.title
+          })),
+          originalTitle: "Top Stocks"
+        }]
+      });
+      document.getElementById("dynamic-market-overview").appendChild(overviewScript);
+    })
+    .catch(err => {
+      console.error("Error loading widgets:", err);
+    });
+</script>
+
+</body>
+</html>

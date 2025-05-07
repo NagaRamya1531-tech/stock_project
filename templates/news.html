@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>News – Stock Insights</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Your custom styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-dark text-white">
+
+  <!-- Background Video & Overlay -->
+  <video autoplay muted loop playsinline class="bg-video">
+    <source src="{{ url_for('static', filename='images/bground.mp4') }}" type="video/mp4">
+  </video>
+  <div class="overlay"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark fixed-top" style="background: rgba(0, 0, 0, 0.3);">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center text-light" href="/">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" width="60" class="me-2">
+        <span style="font-size: 2rem; font-weight: 600;">Stock Insights</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/">Home</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/explore">Explore</a></li>
+          <li class="nav-item me-4"><a class="nav-link active text-warning" href="/news">News</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/dashboard">Dashboard</a></li>
+          <li class="nav-item me-4"><a class="nav-link text-light" href="/logout">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <section class="container py-5 position-relative text-white" style="margin-top: 100px;">
+    <h2 class="text-center mb-4">Latest News Headlines</h2>
+    <!-- TradingView Widget BEGIN -->
+<div class="tradingview-widget-container container">
+  <div class="tradingview-widget-container__widget"></div>
+  <div class="tradingview-widget-copyright"><a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">Track all markets on TradingView</span></a></div>
+  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js" async>
+  {
+  "feedMode": "all_symbols",
+  "isTransparent": false,
+  "displayMode": "regular",
+  "width": "2000",
+  "height": "750",
+  "colorTheme": "dark",
+  "locale": "en"
+}
+  </script>
+</div>
+<!-- TradingView Widget END -->
+  </section>
+
+  <!-- ←—— MIDDLE: News Section ——→ -->
+  <section class="container py-5 position-relative text-white" style="margin-top: 100px;">
+    <h2 class="text-center mb-4">Latest News Headlines</h2>
+
+    <!-- Category Selector -->
+    <form method="POST" class="row g-3 justify-content-center mb-5 explore-form">
+      <div class="col-md-6">
+        <select name="category" class="form-select" onchange="this.form.submit()">
+          {% for cat in [
+            "Union Budget", "Drive Today (BT TV)", "Market Today (BT TV)",
+            "Insurance", "Investment", "Enterprise Tech", "Tech Explainers",
+            "Tax", "IPO Corner", "Stocks", "Company Stock", "Economy", "Trending Stocks"
+          ] %}
+            <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>
+              {{ cat }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+
+    <!-- Headlines List -->
+    {% if headlines %}
+      <div class="row g-3">
+        {% for hl in headlines %}
+          <div class="col-12">
+            <div class="card bg-dark border-light text-light p-3 shadow-sm">
+              <p class="mb-0">{{ loop.index }}. {{ hl }}</p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-center text-light">No headlines found. Please choose a different category.</p>
+    {% endif %}
+
+  </section>
+
+  <!-- ←—— BOTTOM: Contact Section ——→ -->
+  <section class="position-relative mt-5" id="contact">
+    <video autoplay muted loop playsinline class="bg-video-contact">
+      <source src="{{ url_for('static', filename='images/contact_bg.mp4') }}" type="video/mp4">
+    </video>
+    <div class="contact-overlay"></div>
+    <div class="container py-5 position-relative">
+      <h2 class="text-center text-white mb-5">Contact Us</h2>
+      <div class="row align-items-center">
+        <div class="col-md-6 mb-4 text-center">
+          <img src="{{ url_for('static', filename='images/contact_side.png') }}" alt="Contact" class="img-fluid" style="max-height: 350px;">
+        </div>
+        <div class="col-md-6">
+          <div class="card bg-dark text-white border-0 shadow-lg">
+            <div class="card-body">
+              <form>
+                <div class="mb-3">
+                  <label class="form-label">Name</label>
+                  <input type="text" class="form-control" placeholder="Your Name">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Email</label>
+                  <input type="email" class="form-control" placeholder="you@example.com">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Message</label>
+                  <textarea class="form-control" rows="4" placeholder="Message..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-warning w-100">Send Message</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

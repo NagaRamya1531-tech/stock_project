@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Market Trends</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    rel="stylesheet">
+  <style>
+    body {
+      background-color: #0f0f0f;
+      color: white;
+      font-family: 'Poppins', sans-serif;
+    }
+    .nav-tabs .nav-link.active {
+      background-color: #212529;
+      color: #ffc107;
+    }
+    .card {
+      background-color: #1e1e1e;
+      color: white;
+      border: 1px solid #333;
+    }
+    .metric {
+      font-size: 1.2rem;
+    }
+    .pos { color: #00ff00; }
+    .neg { color: #ff4d4d; }
+  </style>
+</head>
+<body>
+
+<div class="container py-5">
+  <h2 class="text-center mb-4 text-warning">Market Trends</h2>
+
+  <ul class="nav nav-tabs mb-4 justify-content-center" id="trendTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="gainers-tab" data-bs-toggle="tab" data-bs-target="#gainers" type="button">Top Gainers</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="losers-tab" data-bs-toggle="tab" data-bs-target="#losers" type="button">Top Losers</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="indices-tab" data-bs-toggle="tab" data-bs-target="#indices" type="button">Indices</button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="trendTabsContent">
+
+    <!-- Gainers -->
+    <div class="tab-pane fade show active" id="gainers" role="tabpanel">
+      <div class="row g-3">
+        {% for stock in gainers %}
+        <div class="col-md-4">
+          <div class="card p-3 shadow-sm">
+            <h5>{{ stock.symbol }} <small class="text-muted">({{ stock.name }})</small></h5>
+            <p class="metric">Price: ${{ stock.price }}</p>
+            <p class="metric pos">Change: {{ stock.change }} ({{ stock.percent }})</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Losers -->
+    <div class="tab-pane fade" id="losers" role="tabpanel">
+      <div class="row g-3">
+        {% for stock in losers %}
+        <div class="col-md-4">
+          <div class="card p-3 shadow-sm">
+            <h5>{{ stock.symbol }} <small class="text-muted">({{ stock.name }})</small></h5>
+            <p class="metric">Price: ${{ stock.price }}</p>
+            <p class="metric neg">Change: {{ stock.change }} ({{ stock.percent }})</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Indices -->
+    <div class="tab-pane fade" id="indices" role="tabpanel">
+      <div class="row g-3">
+        {% for index in indices %}
+        <div class="col-md-4">
+          <div class="card p-3 shadow-sm">
+            <h5>{{ index.name }}</h5>
+            <p class="metric">Price: ${{ index.price }}</p>
+            <p class="metric {% if '+' in index.change %}pos{% else %}neg{% endif %}">
+              Change: {{ index.change }} ({{ index.percent }})
+            </p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
