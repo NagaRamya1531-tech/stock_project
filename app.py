@@ -51,7 +51,7 @@ from prediction import (
     create_lstm_fig,
     create_lr_fig
 )
-from market_trends import fetch_market_trends
+
 
 from io import BytesIO
 
