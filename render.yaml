@@ -4,7 +4,7 @@ services:
     env: python
     buildCommand: pip install -r requirements.txt
     # tell gunicorn to bind to the PORT env var that Render provides
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: startCommand: bash -lc "gunicorn app:app --bind 0.0.0.0:$PORT"
     plan: free
     branch: main
     envVars:
