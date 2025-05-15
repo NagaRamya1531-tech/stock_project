@@ -3,7 +3,8 @@ services:
     name: stock-project
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    # tell gunicorn to bind to the PORT env var that Render provides
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     plan: free
     branch: main
     envVars:
