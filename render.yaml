@@ -3,11 +3,15 @@ services:
     name: stock-project
     env: python
     buildCommand: |
+      pip install numpy==1.24.3 cython>=0.29
       apt-get update && apt-get install -y libgomp1
-      pip install -r build-requirements.txt && pip install -r requirements.txt
+      pip install -r requirements.txt
     startCommand: gunicorn app:app
     plan: free
     branch: main
+    region: oregon
     envVars:
+      - key: ALPHA_API_KEY
+        value: 723Z6Q31E5B0F2W3
       - key: PYTHON_VERSION
         value: 3.10
