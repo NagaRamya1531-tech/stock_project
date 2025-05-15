@@ -2,7 +2,7 @@ services:
   - type: web
     name: stock-project
     env: python
-    buildCommand: ./setup.sh
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     plan: free
     branch: main
