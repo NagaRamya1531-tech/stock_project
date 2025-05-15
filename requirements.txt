@@ -1,5 +1,4 @@
-# Use precompiled binary for Prophet to avoid pystan build issues
---extra-index-url https://pypi.fury.io/epf/
+
 
 prophet==1.1.5
 
