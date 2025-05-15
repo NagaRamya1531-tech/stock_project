@@ -24,7 +24,7 @@ from yahoo_fin import stock_info as si
 from sklearn.linear_model import LinearRegression
 from io import BytesIO
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
-from prophet import Prophet  # ensure it's installed via: pip install prophet
+from neuralprophet import NeuralProphet
 from sklearn.metrics import mean_squared_error
 from keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
