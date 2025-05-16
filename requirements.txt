@@ -36,3 +36,9 @@ geopy==2.4.1
 
 # Misc
 python-dotenv==1.0.1
+
+nltk==3.8.1
+praw==7.8.0
+requests_html==0.10.0
+geopy==2.4.1
+yahoo_fin==0.8.9.1
