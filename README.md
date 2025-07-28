@@ -1,4 +1,5 @@
 # 📊 Stock Insights – Smart Market Prediction and Analysis App
+https://stock-project-1-qksu.onrender.com/
 
 ## 📘 Project Overview: What is *Stock Insights*?
 
