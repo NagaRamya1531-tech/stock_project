@@ -1,6 +1,8 @@
 # 📊 Stock Insights – Smart Market Prediction and Analysis App
 https://stock-project-1-qksu.onrender.com/
 
+https://drive.google.com/file/d/1P-xXqN8zJFX475u306FgJJq5sapJV3F3/view?usp=sharing
+
 ## 📘 Project Overview: What is *Stock Insights*?
 
 **Stock Insights** is an intelligent, real-time **stock market analysis and forecasting web application** built with **Flask** and powered by **machine learning** and **natural language processing**.
